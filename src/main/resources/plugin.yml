@@ -1,4 +1,12 @@
 main: eu.r5t.mclogin.Main
 name: mc-login
-version: 1
+version: 2023-02-12T22:32:07 CET
 api-version: 1.19
+
+commands:
+  reload-login:
+    usage: /reload-login
+  whitelist:
+    usage: /whitelist [reload|clear|add|remove]
+  fails:
+    usage: /fails [reload|clear|add|remove]
