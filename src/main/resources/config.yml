@@ -1,0 +1,7 @@
+password: password
+whitelisted: []
+fails: []
+
+commands:
+  fails:
+  whitelist:

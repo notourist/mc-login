@@ -1,0 +1,4 @@
+main: eu.r5t.mclogin.Main
+name: mc-login
+version: 1
+api-version: 1.19
