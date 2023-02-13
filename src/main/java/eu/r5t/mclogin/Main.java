@@ -11,11 +11,13 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryInteractEvent;
 import org.bukkit.event.player.*;
+import org.bukkit.event.server.ServerListPingEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
-public class Main extends JavaPlugin implements Listener, CommandExecutor {
+public class Main extends JavaPlugin implements Listener, CommandExecutor, TabCompleter {
 
     private List<String> whitelist;
     private List<String> fails;
@@ -27,11 +29,14 @@ public class Main extends JavaPlugin implements Listener, CommandExecutor {
         whitelist = getConfig().getStringList("whitelist");
         fails = getConfig().getStringList("fails");
         password = getConfig().getString("password");
-        getServer().getConsoleSender().sendMessage("Password: " + password);
+        getServer().getConsoleSender().sendMessage("[mc-login] Password: " + password);
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("whitelist").setExecutor(this);
         getCommand("fails").setExecutor(this);
         getCommand("reload-login").setExecutor(this);
+        getCommand("whitelist").setTabCompleter(this);
+        getCommand("fails").setTabCompleter(this);
+        getCommand("reload-login").setTabCompleter(this);
     }
 
     public void onDisable() {
@@ -43,6 +48,10 @@ public class Main extends JavaPlugin implements Listener, CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if ("ip".equals(label) && sender instanceof Player player) {
+            player.sendMessage("IP: " + ChatColor.GOLD + getHostAddress(player));
+            return true;
+        }
         if ((sender instanceof Player player && !player.isOp())) {
             sender.sendMessage(ChatColor.RED + "Not allowed");
             return true;
@@ -59,31 +68,69 @@ public class Main extends JavaPlugin implements Listener, CommandExecutor {
             fails.forEach(s -> sender.sendMessage(" - " + s));
             return true;
         }
-        if (args.length != 2) {
+        if (args.length < 1) {
             return false;
         }
         String type = "fails".equals(label) ? "fails" : "whitelist";
-        List<String> list = "fails".equals(label) ? fails : whitelist;
         switch (args[0]) {
             case "reload" -> {
-                list.clear();
-                list.addAll(getConfig().getStringList(type));
+                ("fails".equals(label) ? fails : whitelist).clear();
+                ("fails".equals(label) ? fails : whitelist).addAll(getConfig().getStringList(type));
                 sender.sendMessage(ChatColor.GOLD + "Reloaded " + type);
             }
             case "clear" -> {
-                list.clear();
+                ("fails".equals(label) ? fails : whitelist).clear();
                 sender.sendMessage(ChatColor.GOLD + "Cleared " + type);
             }
             case "add" -> {
-                list.add(args[1]);
+                ("fails".equals(label) ? fails : whitelist).add(args[1]);
                 sender.sendMessage(ChatColor.GOLD + "Added " + args[1] + " to " + type);
             }
             case "remove" -> {
-                list.remove(args[1]);
+                ("fails".equals(label) ? fails : whitelist).remove(args[1]);
                 sender.sendMessage(ChatColor.GOLD + "Removed " + args[1] + " from " + type);
+            }
+            case "list" -> {
+                sender.sendMessage(type + ":");
+                ("fails".equals(label) ? fails : whitelist).forEach(s -> sender.sendMessage(" - " + ChatColor.GOLD + s));
             }
         }
         return true;
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if ("ip".equals(command.getName()) || "reload-login".equals(command.getName())) {
+            return Collections.emptyList();
+        }
+        var arg0 = Arrays.asList("reload", "clear", "list", "add", "remove");
+        if (args.length == 0) {
+            return arg0;
+        } else if (args.length == 1) {
+            var matches = arg0.stream().filter(a -> a.contains(args[0])).toList();
+            return matches.size() != 0 ? matches : arg0;
+        } else if (args.length == 2) {
+            var list = new ArrayList<>(command.getName().equals("fails") ? fails : whitelist);
+            var online = Bukkit.getOnlinePlayers().stream()
+                    .map(this::getHostAddress)
+                    .filter(list::contains)
+                    .toList();
+            list.addAll(online);
+            var matches = list.stream().filter(e -> e.contains(args[1])).toList();
+            return matches.size() != 0 ? matches : list;
+        }
+        return Collections.emptyList();
+    }
+
+    @EventHandler
+    public void onServerListPing(ServerListPingEvent event) {
+        if (whitelist.contains(event.getAddress().getHostAddress())) {
+            event.setMotd(ChatColor.GOLD + "IP is whitelisted");
+            return;
+        }
+        while (event.iterator().hasNext()) {
+            event.iterator().remove();
+        }
     }
 
     @EventHandler
